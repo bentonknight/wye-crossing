@@ -1,0 +1,22 @@
+[build]
+  publish = "."
+
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
+# Clean URLs for the two functions
+[[redirects]]
+  from = "/api/sns"
+  to = "/.netlify/functions/sns"
+  status = 200
+
+[[redirects]]
+  from = "/api/closures"
+  to = "/.netlify/functions/closures"
+  status = 200
+
+[[redirects]]
+  from = "/api/schedule"
+  to = "/.netlify/functions/schedule"
+  status = 200

@@ -1,0 +1,10 @@
+{
+  "name": "wye-crossing",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Live status monitor for the Wye level crossing, Kent",
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}
