@@ -580,8 +580,11 @@ const MIN_SIGHTINGS = 2;  // ignore one-off sightings when drawing the pattern
 
 let planSelected = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
 let planClosures = [];
-let patternCache = {};   // dow -> entries
+let patternCache = {};   // dow -> entries (learned fallback)
 let patternMeta = {};    // dow -> { days, updated }
+let publishedCache = {}; // dateKey -> [{time,dest,stops}] (Network Rail SCHEDULE)
+let publishedMeta = null;// { generated, freshDays, stale } for the whole feed
+let publishedLoaded = false;
 
 const pad2 = n => String(n).padStart(2, "0");
 const dayKeyOf = d => d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
@@ -592,6 +595,36 @@ function durText(ms) {
   if (m < 60) return "~" + m + " min";
   const h = Math.floor(m / 60), r = m % 60;
   return "~" + h + " hr" + (r ? " " + r + " min" : "");
+}
+
+// ── the published timetable (Network Rail SCHEDULE, via daily ingest) ─────────
+// Loaded once per sheet open. If it's missing or stale, the app silently falls
+// back to the learned pattern and flags it (visibly to Benton, quietly to others).
+const PUBLISHED_STALE_HOURS = 36; // older than this ⇒ treat as stale, use fallback
+
+async function loadPublished() {
+  if (publishedLoaded) return;
+  publishedLoaded = true;
+  try {
+    const r = await fetch("/api/timetable?t=" + Date.now());
+    if (!r.ok) throw new Error("no timetable");
+    const d = await r.json();
+    const gen = d.generated ? new Date(d.generated) : null;
+    const ageH = gen ? (Date.now() - gen.getTime()) / 3600e3 : Infinity;
+    const stale = !gen || ageH > PUBLISHED_STALE_HOURS;
+    publishedCache = d.days || {};   // { "YYYY-MM-DD": [ {time,dest,stops}, ... ] }
+    publishedMeta = { generated: gen, ageH, stale, ok: !stale && Object.keys(publishedCache).length > 0 };
+  } catch {
+    publishedCache = {};
+    publishedMeta = { generated: null, ageH: Infinity, stale: true, ok: false };
+  }
+}
+
+// Published entries for a given date, or null if none / feed is stale
+function publishedFor(date) {
+  if (!publishedMeta || !publishedMeta.ok) return null;
+  const arr = publishedCache[dayKeyOf(date)];
+  return Array.isArray(arr) && arr.length ? arr : null;
 }
 
 // ── the learned timetable ────────────────────────────────────────────────────
@@ -660,8 +693,14 @@ function windowsFrom(list) {
 }
 
 function planDayModel(date, now) {
-  const entries = patternCache[date.getDay()] || [];
   const isToday = sameDay(date, now);
+
+  // Source priority for the base timetable: published (Network Rail) → learned.
+  const published = publishedFor(date);
+  const learned = patternCache[date.getDay()] || [];
+  const entries = published || learned;
+  const source = published ? "published" : (learned.length ? "learned" : "none");
+
   const list = isToday ? todayTrains(entries, now) : patternTrains(date, entries, now);
   let closures = windowsFrom(list);
 
@@ -685,6 +724,7 @@ function planDayModel(date, now) {
     closures: [...closures, ...works].sort((a, b) => a.start - b.start),
     works: works[0] || null,
     entries,
+    source,   // "published" | "learned" | "none"
     isToday,
   };
 }
@@ -754,7 +794,7 @@ function planRenderDates() {
       '<div class="dnum">' + d.getDate() + '</div>';
     b.onclick = async () => {
       planSelected = d;
-      await loadPattern(d.getDay());
+      await loadPattern(d.getDay()); // learned fallback for this weekday
       planRenderDates(); planRenderDay();
     };
     strip.appendChild(b);
@@ -763,13 +803,26 @@ function planRenderDates() {
 
 function planRenderDay() {
   const now = new Date();
-  const { closures, works, entries, isToday } = planDayModel(planSelected, now);
+  const { closures, works, entries, source, isToday } = planDayModel(planSelected, now);
   planClosures = closures;
   const meta_ = patternMeta[planSelected.getDay()] || { days: 0 };
+  const onFallback = source === "learned";
 
-  document.getElementById("sheetNote").textContent = isToday
-    ? "Live times for the next 2 hours, planned pattern beyond that."
-    : "Planned times from the observed pattern. Live data only reaches about 2 hours ahead.";
+  // The source note: reassuring to villagers, informative to Benton.
+  let note;
+  if (isToday) {
+    note = "Live times for the next 2 hours, " +
+      (source === "published" ? "published timetable" : "observed pattern") + " beyond that.";
+  } else if (source === "published") {
+    note = "From the published National Rail timetable.";
+  } else if (source === "learned") {
+    note = "⚠ Live timetable data unavailable — showing the observed pattern instead.";
+  } else {
+    note = "";
+  }
+  const noteEl = document.getElementById("sheetNote");
+  noteEl.textContent = note;
+  noteEl.style.color = onFallback ? "#F2A900" : "#8a918a";
 
   document.getElementById("worksSlot").innerHTML = works
     ? '<div class="worksbox"><div class="wtitle">Road closed for engineering works</div>' +
@@ -780,12 +833,14 @@ function planRenderDay() {
 
   const host = document.getElementById("planContent");
 
-  // Nothing learned for this weekday yet — say so plainly rather than guess
+  // Nothing from either source for this future day — say so plainly
   if (!entries.length && !isToday && !works) {
+    const stale = publishedMeta && !publishedMeta.ok;
     host.innerHTML = '<div class="semptyd"><strong>No timetable data yet for this day.</strong><br>' +
-      'The app is still learning the pattern from what actually passes the crossing. ' +
-      'Each ' + planSelected.toLocaleDateString("en-GB", { weekday: "long" }) +
-      ' it observes gets added, so this fills in over the next couple of weeks. ' +
+      (stale
+        ? 'The published timetable is currently unavailable and the app hasn\'t yet observed enough ' +
+          planSelected.toLocaleDateString("en-GB", { weekday: "long" }) + 's to fall back on. '
+        : 'The published timetable didn\'t include this day. ') +
       'Today\'s live view works normally in the meantime.</div>';
     return;
   }
@@ -824,11 +879,13 @@ function planRenderDay() {
     '<div class="cdur">' + durText(c.end - c.start) + '</div></div>').join("")
     : '<div class="semptyd">No closures for this day.</div>';
 
-  const conf = meta_.days
-    ? "Pattern learned from " + meta_.days + " observed " +
-      planSelected.toLocaleDateString("en-GB", { weekday: "long" }) +
-      (meta_.days === 1 ? "" : "s") + "."
-    : "";
+  const conf = source === "published"
+    ? "From the published timetable."
+    : meta_.days
+      ? "Observed pattern from " + meta_.days + " " +
+        planSelected.toLocaleDateString("en-GB", { weekday: "long" }) +
+        (meta_.days === 1 ? "" : "s") + "."
+      : "";
 
   host.innerHTML =
     '<div class="stats">' +
@@ -906,7 +963,7 @@ document.getElementById("openSheet").addEventListener("click", async () => {
   document.getElementById("planContent").innerHTML =
     '<div class="semptyd">Loading timetable…</div>';
   planRenderDates();
-  await loadPattern(planSelected.getDay());
+  await Promise.all([loadPublished(), loadPattern(planSelected.getDay())]);
   planRenderDay();
   document.getElementById("closeSheet").focus();
 });
