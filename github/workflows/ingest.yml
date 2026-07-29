@@ -1,0 +1,29 @@
+name: Daily Wye timetable ingest
+
+on:
+  schedule:
+    # 06:30 UTC daily — Network Rail JSON snapshots are ready from ~06:00.
+    # (GitHub cron is UTC; close enough year-round for this purpose.)
+    - cron: "30 6 * * *"
+  workflow_dispatch: {}   # lets you run it manually from the Actions tab
+
+jobs:
+  ingest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Run ingest
+        env:
+          NR_USER: ${{ secrets.NR_USER }}
+          NR_PASS: ${{ secrets.NR_PASS }}
+          INGEST_URL: ${{ secrets.INGEST_URL }}
+          INGEST_KEY: ${{ secrets.INGEST_KEY }}
+        run: node ingest/ingest-schedule.mjs
