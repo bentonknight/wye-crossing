@@ -58,15 +58,66 @@
   .empty { background: var(--card); border: 1px solid var(--line); border-radius: 8px;
            padding: 14px 16px; font-size: 14px; color: var(--muted); }
 
-  .board { background: #101510; border-radius: 10px; padding: 6px 0; overflow: hidden; }
+  .board { background: #101510; border-radius: 10px; padding: 4px 0; overflow: hidden; }
+  /* legacy single-line row, still used for the loading / empty states */
   .row { display: grid; grid-template-columns: 64px 1fr auto; gap: 12px; align-items: baseline;
          padding: 11px 18px; color: #FFB400; font-size: 14px; }
-  .row:not(:last-child) { border-bottom: 1px solid #2c352c; }
   .row .t { font-weight: 600; }
-  .row .route { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-  .row .note { color: #7d8a5a; margin-left: 8px; font-size: 12px; }
-  .row .stat { font-size: 12px; }
   .ontime { color: #9ee37d; } .delayed { color: #ff6b5e; } .sched { color: #7d8a5a; }
+
+  /* expandable service rows */
+  .trow { border-bottom: 1px solid #2c352c; }
+  .trow:last-child { border-bottom: 0; }
+  .thead { display: grid; grid-template-columns: 54px minmax(0,1fr) auto auto 14px;
+           gap: 9px; align-items: center; padding: 12px 16px; cursor: pointer;
+           color: #FFB400; font-size: 14px; font-family: 'IBM Plex Mono', monospace;
+           -webkit-tap-highlight-color: transparent; user-select: none; }
+  .thead:hover { background: #161d16; }
+  .thead .tt { font-weight: 600; }
+  .thead .troute { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+  .thead .tnote { color: #7d8a5a; font-size: 11.5px; margin-left: 7px; }
+  .tcars { background: #1e2a1e; color: #9fb08f; font-size: 10.5px; letter-spacing: .06em;
+           padding: 2.5px 7px; border-radius: 4px; white-space: nowrap; }
+  .tstat { font-size: 11.5px; white-space: nowrap; }
+  .tchev { color: #5a664f; font-size: 15px; transition: transform .2s; line-height: 1;
+           text-align: right; }
+  .trow.open .tchev { transform: rotate(90deg); }
+  @media (max-width: 430px) {
+    .thead { grid-template-columns: 48px minmax(0,1fr) auto 12px; gap: 7px;
+             padding: 11px 12px; font-size: 13px; }
+    .tstat { grid-column: 2 / 4; font-size: 11px; margin-top: -2px; }
+    .tcars { font-size: 10px; padding: 2px 5px; }
+  }
+
+  .tdetail { max-height: 0; overflow: hidden; transition: max-height .28s ease; background: #0b0f0b; }
+  .trow.open .tdetail { max-height: 640px; }
+  .tinner { padding: 2px 0 14px; }
+  .ticker { overflow: hidden; background: #070a07; border-top: 1px solid #1d251d;
+            border-bottom: 1px solid #1d251d; padding: 9px 0; margin-bottom: 12px; }
+  .ticker-in { display: inline-block; white-space: nowrap; padding-left: 100%;
+               font-family: 'IBM Plex Mono', monospace; font-size: 13.5px; color: #FFB400;
+               letter-spacing: .02em; }
+  .trow.open .ticker-in { animation: tscroll 18s linear infinite; }
+  @keyframes tscroll { 0% { transform: translateX(0) } 100% { transform: translateX(-100%) } }
+  @media (prefers-reduced-motion: reduce) {
+    .trow.open .ticker-in { animation: none; padding-left: 16px; white-space: normal;
+                            display: block; line-height: 1.5; }
+  }
+  .ticker-in b { color: #fff; font-weight: 600; }
+  .ticker-in i { font-style: normal; color: #7d8a5a; }
+  .dgrid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; padding: 0 16px; }
+  .dcell { background: #141b14; border-radius: 7px; padding: 9px 11px; }
+  .dcell .dk { font-size: 9.5px; letter-spacing: .13em; text-transform: uppercase;
+               color: #6f7a6f; font-family: 'IBM Plex Mono', monospace; }
+  .dcell .dv { font-size: 14px; color: #dfe4df; margin-top: 3px; font-weight: 600; }
+  .dcell .dv small { font-weight: 400; color: #8a918a; font-size: 11.5px; }
+  .barrier { margin: 10px 16px 0; border-radius: 7px; padding: 10px 12px; font-size: 12.5px;
+             line-height: 1.5; display: flex; gap: 9px; align-items: flex-start; }
+  .barrier.good { background: #12251a; color: #a8d8b4; border-left: 3px solid var(--green); }
+  .barrier.hold { background: #2a1a12; color: #e0bda4; border-left: 3px solid var(--amber); }
+  .barrier.na   { background: #1a1d1a; color: #9aa39a; border-left: 3px solid #485048; }
+  .barrier b { color: #fff; font-weight: 600; }
+  .bico { font-size: 14px; line-height: 1.2; }
 
   footer { margin-top: 26px; font-size: 12px; color: #6a716a; line-height: 1.6; }
   footer .mono { font-size: 11px; }
@@ -287,6 +338,11 @@ const PROXIES = [
 const OFF_AFK = 7;   // mins: Ashford dep → passes Wye
 const OFF_CBW = 13;  // mins: Canterbury West dep → passes Wye
 const DOWN_BEFORE = 180, UP_AFTER_PASS = 45, UP_AFTER_STOP = 95; // seconds
+// A stopping train from Ashford that is short enough to sit clear of the road
+// releases the barriers on arrival rather than on departure. Confirmed at Wye:
+// anything longer than 6 cars overhangs. NEEDS CALIBRATION — time a few 6-car
+// arrivals from barrier-down to barrier-up and adjust this figure.
+const UP_AFTER_STOP_CLEAR = 70;
 // DOWN_BEFORE calibrated from observation: barriers drop ~3 min before a train.
 // Lift times (UP_AFTER_*) verified as accurate.
 const MERGE_GAP = 60, WARNING_LEAD = 180; // seconds
@@ -349,6 +405,20 @@ async function fetchBoard(path) {
 const key = s => s.serviceIdGuid || s.serviceID || s.serviceId || (s.std + s.sta);
 const services = b => (b && b.trainServices) || [];
 
+// Darwin's ServiceItem carries train length in coaches. Southeastern publishes
+// formation data, but it's operator-supplied so treat it as optional.
+function coachCount(s) {
+  const n = Number(s && s.length);
+  return Number.isFinite(n) && n > 0 && n < 40 ? n : null;
+}
+// Calling points only appear on "with details" responses — use them if present.
+function callingPoints(s) {
+  const cp = s && s.subsequentCallingPoints && s.subsequentCallingPoints[0];
+  const list = cp && (cp.callingPoint || cp);
+  if (!Array.isArray(list)) return "";
+  return list.map(c => c && c.locationName).filter(Boolean).join(", ");
+}
+
 async function fetchCrossingData() {
   const now = new Date();
   const [wye, afk, cbw] = await Promise.all([
@@ -373,6 +443,8 @@ async function fetchCrossingData() {
       origin: s.origin?.[0]?.locationName || "—",
       sched: s.std || s.sta,
       delayed: s.etd === "Delayed" || s.eta === "Delayed",
+      cars: coachCount(s), operator: s.operator || "", platform: s.platform || "",
+      calling: callingPoints(s),
     });
   }
   const addThrough = (list, offMin) => {
@@ -393,6 +465,8 @@ async function fetchCrossingData() {
         dest: s.destination?.[0]?.locationName || "—",
         origin: s.origin?.[0]?.locationName || "—",
         sched: s.std, delayed: s.etd === "Delayed",
+        cars: coachCount(s), operator: s.operator || "", platform: "",
+        calling: callingPoints(s),
       });
     }
   };
@@ -449,6 +523,7 @@ function mergeLiveMovements(darwinList, now, cancelledAt) {
         pass: schedAt, sched: e.time, live: false, delayed: false,
         stops: !!e.stops, dest: e.dest || "—", origin: "—",
         kind: e.kind || "other", tracked: false,
+        cars: null, operator: "", platform: "", calling: "",
       });
     }
   }
@@ -461,10 +536,56 @@ function mergeLiveMovements(darwinList, now, cancelledAt) {
   return out.sort((a, b) => a.pass - b.pass);
 }
 
+// ── platform fit ─────────────────────────────────────────────────────────────
+// A train arriving from Ashford that calls at Wye clears the crossing once it's
+// in the platform IF it's short enough; a longer one still fouls the road, so
+// the barriers stay down until it departs. In the opposite direction length is
+// irrelevant — the train crosses the road on departure either way.
+const PLATFORM_CARS = 6; // longest train that fits clear of the crossing
+
+const TOWARDS_ASHFORD = /ashford|london|st pancras|charing|cannon|victoria|tonbridge|maidstone|dover|folkestone|sandling|westenhanger/i;
+function directionOf(dest) {
+  return TOWARDS_ASHFORD.test(dest || "") ? "toAshford" : "toCanterbury";
+}
+
+// How long the barriers stay down after a movement reaches the crossing.
+// Used by BOTH the live view and Plan ahead so the two never disagree.
+// Coach count is only known for live (Darwin) services — future days fall back
+// to the conservative figure, which is the safe direction to be wrong in.
+function upAfterFor(t) {
+  if (!t.stops) return UP_AFTER_PASS;
+  if (directionOf(t.dest) === "toCanterbury" &&
+      t.cars != null && t.cars <= PLATFORM_CARS) return UP_AFTER_STOP_CLEAR;
+  return UP_AFTER_STOP;
+}
+
+function barrierNote(t) {
+  if (t.kind === "freight" || t.kind === "ecs" || t.kind === "other")
+    return { cls: "na", ico: "•",
+      txt: "No formation data for this movement, so barrier timing can't be refined." };
+  if (!t.stops)
+    return { cls: "na", ico: "→",
+      txt: "Passes straight through — barriers lift as soon as it clears, whatever the length." };
+  if (directionOf(t.dest) === "toAshford")
+    return { cls: "na", ico: "↔",
+      txt: "Towards Ashford — length makes no difference. The train crosses the road " +
+           "<b>after</b> leaving the platform, so barriers stay down until it departs." };
+  if (t.cars == null)
+    return { cls: "na", ico: "?",
+      txt: "Length not published, so we can't tell whether it will clear the crossing." };
+  if (t.cars <= PLATFORM_CARS)
+    return { cls: "good", ico: "✓",
+      txt: "<b>" + t.cars + " cars — fits the platform.</b> Clears the crossing on arrival, so " +
+           "barriers should lift while it's standing at Wye. Closure shortened accordingly." };
+  return { cls: "hold", ico: "!",
+    txt: "<b>" + t.cars + " cars — overhangs the platform.</b> Still fouls the crossing while " +
+         "stopped, so barriers stay down until it departs." };
+}
+
 function buildClosures(list) {
   const ws = list.map(t => ({
     start: new Date(t.pass.getTime() - DOWN_BEFORE * 1000),
-    end: new Date(t.pass.getTime() + (t.stops ? UP_AFTER_STOP : UP_AFTER_PASS) * 1000),
+    end: new Date(t.pass.getTime() + upAfterFor(t) * 1000),
     trains: [t],
   })).sort((a, b) => a.start - b.start);
   const merged = [];
@@ -608,30 +729,99 @@ function render() {
   else if (!plannedRows.length && !trainRows.length) cEl.innerHTML = '<div class="empty">No trains due past the crossing in the next two hours.</div>';
   else cEl.innerHTML = plannedRows.join("") + trainRows.join("");
 
-  // board
+  // board — rebuilt only when the data actually changes, and never while a
+  // row is expanded (that would collapse it and restart the ticker).
+  renderBoard(trains.filter(t => t.pass > new Date(now - 2 * 6e4)).slice(0, 8));
+
+  document.getElementById("updated").textContent = updatedAt ? clock(updatedAt) : "—";
+}
+
+// ── live board ───────────────────────────────────────────────────────────────
+let openTrainKey = null, boardSig = null;
+const trainKey = t => clock(t.pass) + "|" + (t.dest || "");
+
+function renderBoard(future) {
   const bEl = document.getElementById("board");
-  const future = trains.filter(t => t.pass > new Date(now - 2 * 6e4)).slice(0, 8);
-  if (loading) bEl.innerHTML = '<div class="row mono"><span class="sched">Loading…</span></div>';
-  else if (!future.length) bEl.innerHTML = '<div class="row mono"><span class="sched">No services in the next two hours.</span></div>';
-  else bEl.innerHTML = future.map(t => {
+  const sig = loading ? "loading"
+    : future.map(t => trainKey(t) + (t.delayed ? "D" : "") + (t.live ? "L" : "") +
+                      (t.cars || "")).join(",");
+  if (sig === boardSig) return;                 // nothing changed
+  if (openTrainKey && bEl.querySelector(".trow.open")) return; // don't yank an open row
+  boardSig = sig;
+
+  if (loading) {
+    bEl.innerHTML = '<div class="row mono"><span class="sched">Loading…</span></div>';
+    return;
+  }
+  if (!future.length) {
+    bEl.innerHTML = '<div class="row mono"><span class="sched">No services in the next two hours.</span></div>';
+    return;
+  }
+
+  bEl.innerHTML = future.map(t => {
+    const k = trainKey(t);
     const label = t.kind === "freight" ? "freight"
                 : t.kind === "ecs" ? "empty stock"
                 : (t.stops ? "calls at Wye" : "passes through");
     // Movements Darwin can't see (freight/ECS) have no live status — say so
     // rather than implying they're confirmed on time.
-    const stat = t.delayed ? '<span class="stat delayed">Delayed</span>'
-      : t.tracked === false ? '<span class="stat sched">timetabled</span>'
-      : t.live ? '<span class="stat ontime">On time</span>'
-      : '<span class="stat sched">sched ' + esc(t.sched || "") + '</span>';
+    const stat = t.delayed ? '<span class="tstat delayed">Delayed</span>'
+      : t.tracked === false ? '<span class="tstat sched">timetabled</span>'
+      : t.live ? '<span class="tstat ontime">On time</span>'
+      : '<span class="tstat sched">sched ' + esc(t.sched || "") + '</span>';
     const route = t.origin && t.origin !== "—"
       ? esc(t.origin) + " → " + esc(t.dest) : esc(t.dest);
-    return '<div class="row mono"><span class="t">' + clock(t.pass) + "</span>" +
-      '<span class="route">' + route +
-      '<span class="note">' + label + "</span></span>" + stat + "</div>";
-  }).join("");
+    const cars = t.cars ? t.cars + " cars" : "—";
+    const b = barrierNote(t);
 
-  document.getElementById("updated").textContent = updatedAt ? clock(updatedAt) : "—";
+    const ticker = "<b>" + route + "</b> &nbsp;·&nbsp; " +
+      (t.cars ? t.cars + " coaches" : "formation not published") + " &nbsp;·&nbsp; " +
+      (t.calling ? "<i>calling at</i> " + esc(t.calling) + " &nbsp;·&nbsp; " : "") +
+      (t.operator ? "<i>operator</i> " + esc(t.operator) : "<i>not a passenger service</i>") +
+      (t.platform ? " &nbsp;·&nbsp; <i>platform</i> " + esc(t.platform) : "") +
+      " &nbsp;·&nbsp; <i>passes Wye</i> " + clock(t.pass);
+
+    return '<div class="trow' + (k === openTrainKey ? " open" : "") + '" data-k="' + esc(k) + '">' +
+      '<div class="thead">' +
+        '<span class="tt">' + clock(t.pass) + '</span>' +
+        '<span class="troute">' + route + '<span class="tnote">' + label + '</span></span>' +
+        '<span class="tcars">' + cars + '</span>' + stat +
+        '<span class="tchev">›</span>' +
+      '</div>' +
+      '<div class="tdetail"><div class="tinner">' +
+        '<div class="ticker"><span class="ticker-in">' + ticker + '</span></div>' +
+        '<div class="dgrid">' +
+          '<div class="dcell"><div class="dk">Coaches</div><div class="dv">' +
+            (t.cars ? t.cars + ' <small>cars</small>' : '— <small>not published</small>') +
+          '</div></div>' +
+          '<div class="dcell"><div class="dk">Platform</div><div class="dv">' +
+            (t.platform ? esc(t.platform) : "—") + '</div></div>' +
+          '<div class="dcell"><div class="dk">Operator</div><div class="dv" style="font-size:12.5px">' +
+            (t.operator ? esc(t.operator) : "—") + '</div></div>' +
+          '<div class="dcell"><div class="dk">At Wye</div><div class="dv" style="font-size:12.5px">' +
+            (t.stops ? "Calls" : "Passes") + '</div></div>' +
+        '</div>' +
+        '<div class="barrier ' + b.cls + '"><span class="bico">' + b.ico + '</span><span>' +
+          b.txt + '</span></div>' +
+      '</div></div></div>';
+  }).join("");
 }
+
+// tap to expand, tap again to close; one open at a time
+document.getElementById("board").addEventListener("click", e => {
+  const head = e.target.closest && e.target.closest(".thead");
+  if (!head) return;
+  const row = head.parentElement;
+  const wasOpen = row.classList.contains("open");
+  [...document.querySelectorAll(".trow.open")].forEach(r => r.classList.remove("open"));
+  if (wasOpen) {
+    openTrainKey = null;
+    boardSig = null;   // allow any deferred data update to apply now
+  } else {
+    row.classList.add("open");
+    openTrainKey = row.dataset.k;
+  }
+});
 
 async function refresh() {
   // Planned closures load independently so a train-data failure doesn't hide
@@ -759,7 +949,8 @@ function todayTrains(entries, now) {
     .map(t => {
       const schedD = parseHHMM(t.sched, now);
       const delay = schedD ? Math.max(0, Math.round((t.pass - schedD) / 60000)) : 0;
-      return { t: t.pass, delay, dest: t.dest, stops: t.stops, state: "live" };
+      return { t: t.pass, delay, dest: t.dest, stops: t.stops,
+               kind: t.kind || "passenger", cars: t.cars ?? null, state: "live" };
     });
   const midnight = new Date(now); midnight.setHours(0, 0, 0, 0);
   const rest = patternTrains(midnight, entries, now)
@@ -771,7 +962,7 @@ function todayTrains(entries, now) {
 function windowsFrom(list) {
   const wins = list.map(tr => ({
     start: new Date(tr.t.getTime() - DOWN_BEFORE * 1000),
-    end: new Date(tr.t.getTime() + (tr.stops ? UP_AFTER_STOP : UP_AFTER_PASS) * 1000),
+    end: new Date(tr.t.getTime() + upAfterFor({ stops: tr.stops, dest: tr.dest, cars: tr.cars }) * 1000),
     trains: [tr], works: false,
   })).sort((a, b) => a.start - b.start);
   const merged = [];
