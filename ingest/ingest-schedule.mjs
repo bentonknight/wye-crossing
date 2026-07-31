@@ -63,7 +63,8 @@ async function fetchFeed() {
 }
 
 // The JSON feed is newline-delimited JSON objects, gzipped. Each line is either
-// a JsonScheduleV1 (a schedule) or metadata we ignore.
+// a JsonScheduleV1 (a schedule), a TiplocV1 (a location name record), or
+// metadata we ignore.
 async function collectSchedules() {
   const res = await fetchFeed();
   const gunzip = zlib.createGunzip();
@@ -73,12 +74,25 @@ async function collectSchedules() {
   const rl = readline.createInterface({ input: nodeStream.pipe(gunzip), crlfDelay: Infinity });
 
   const schedules = []; // only those passing Wye
+  const tiplocs = new Map(); // code -> { name, crs }
   let seen = 0;
 
   for await (const line of rl) {
     if (!line.trim()) continue;
     let obj;
     try { obj = JSON.parse(line); } catch { continue; }
+
+    // Location reference records travel in the same file — collect them so we
+    // can turn TIPLOCs into readable names without a second download.
+    const tl = obj.TiplocV1;
+    if (tl && tl.tiploc_code) {
+      tiplocs.set(tl.tiploc_code, {
+        name: tl.tps_description || tl.description || null,
+        crs: tl.crs_code || null,
+      });
+      continue;
+    }
+
     const s = obj.JsonScheduleV1;
     if (!s) continue;
     seen++;
@@ -98,9 +112,9 @@ async function collectSchedules() {
     if (!time) continue;
     const stops = !passStr && !!(depStr || arrStr);
 
-    // destination = last scheduled location
-    const last = locs[locs.length - 1];
-    const dest = tiplocName(last && last.tiploc_code) || "—";
+    // Keep the tail of the route (last stops first). Resolved to a name after
+    // the pass completes, since TIPLOC records may appear later in the file.
+    const tail = locs.slice(-10).map(l => l.tiploc_code).filter(Boolean).reverse();
 
     schedules.push({
       uid: s.CIF_train_uid,
@@ -108,25 +122,82 @@ async function collectSchedules() {
       to: s.schedule_end_date,
       days: s.schedule_days_runs,        // "1111100" style bitmap
       stp: s.CIF_stp_indicator,          // P / O / C / N
-      toc: seg && seg.CIF_train_service_code ? s.atoc_code : s.atoc_code,
-      time, stops, dest,
+      cat: (seg && seg.CIF_train_category) || "",
+      status: s.train_status || "",
+      time, stops, tail,
     });
   }
 
-  console.log(`scanned ${seen} schedules, ${schedules.length} pass Wye`);
+  console.log(`scanned ${seen} schedules, ${schedules.length} pass Wye, ` +
+              `${tiplocs.size} location names`);
   if (!schedules.length) die("no schedules pass Wye — check TIPLOC / feed format");
+
+  // Resolve destinations now that every location record has been seen.
+  for (const s of schedules) {
+    s.dest = resolveDest(s.tail, tiplocs);
+    delete s.tail;
+  }
   return schedules;
 }
 
-// Minimal TIPLOC → friendly name for the destinations we expect on this line.
-// Anything unknown falls back to the raw code (still useful).
+// Prefer the last location that is a real passenger station (has a CRS code) —
+// otherwise empty-stock moves report a depot or siding code as the destination.
+function resolveDest(tail, tiplocs) {
+  if (!Array.isArray(tail) || !tail.length) return "—";
+  let firstNamed = null;
+  for (const code of tail) {
+    const rec = tiplocs.get(code);
+    if (rec && rec.crs && rec.name) return titleCase(rec.name);
+    if (!firstNamed && rec && rec.name) firstNamed = rec.name;
+  }
+  if (firstNamed) return titleCase(firstNamed);
+  return TIPLOC_NAMES[tail[0]] || tail[0]; // last resort: the raw code
+}
+
+// Feed names are upper case ("LONDON ST PANCRAS INTL"); make them readable.
+const KEEP_UPPER = new Set(["DLR", "CTRL", "HS1", "TMD"]);
+const KEEP_LOWER = new Set(["and", "of", "on", "the", "in", "le", "upon", "under", "by"]);
+const EXPAND = { intl: "International", jn: "Junction", jcn: "Junction" };
+function capWord(w) {
+  return w.replace(/([a-z])([a-z']*)/g, (m, a, b) => a.toUpperCase() + b);
+}
+function titleCase(str) {
+  return String(str).toLowerCase().split(/\s+/).map((w, i) => {
+    const up = w.toUpperCase();
+    if (KEEP_UPPER.has(up)) return up;
+    if (EXPAND[w]) return EXPAND[w];
+    if (i > 0 && KEEP_LOWER.has(w)) return w;
+    // hyphenated names keep their little words lower: stoke-on-trent
+    if (w.includes("-"))
+      return w.split("-").map((p, j) =>
+        (j > 0 && KEEP_LOWER.has(p)) ? p : capWord(p)).join("-");
+    return capWord(w);
+  }).join(" ");
+}
+
+// Last-resort fallback only — names normally come from the feed's own
+// TiplocV1 records (see resolveDest above).
 const TIPLOC_NAMES = {
-  ASHFKY: "Ashford International", ASHFDK: "Ashford International",
-  CANTBW: "Canterbury West", RAMSGTE: "Ramsgate", MARGATE: "Margate",
-  DOVERP: "Dover Priory", STPXBOX: "London St Pancras", STPX: "London St Pancras",
+  ASHFKY: "Ashford International", ASHFDNS: "Ashford International",
+  CNTBW: "Canterbury West", CANTBW: "Canterbury West",
   WYEE: "Wye", CHILHM: "Chilham", CHRTHM: "Chartham",
+  STPANCI: "London St Pancras International", LNDNBDE: "London Bridge",
 };
-function tiplocName(code) { return code ? (TIPLOC_NAMES[code] || code) : null; }
+
+// ── movement classification ──────────────────────────────────────────────────
+// Darwin only ever sees passenger services, so the app needs to know which
+// movements it can expect live data for and which it can't.
+const PASSENGER_CATS = new Set(["OL", "OO", "OW", "XC", "XD", "XI", "XR", "XX", "XZ"]);
+function classify(s) {
+  const cat = (s.cat || "").toUpperCase();
+  const st = (s.status || "").toUpperCase();
+  if (cat.startsWith("E")) return "ecs";            // EE/EL/ES — empty coaching stock
+  if (st === "F" || st === "2" || st === "T" || st === "3") return "freight";
+  if (cat.startsWith("J") || cat.startsWith("H")) return "freight";
+  if (PASSENGER_CATS.has(cat)) return "passenger";
+  if (st === "P" || st === "1") return "passenger";
+  return "other";
+}
 
 // ── STP resolution per date ──────────────────────────────────────────────────
 // For each date, group candidate schedules by UID and pick the winner:
@@ -155,7 +226,7 @@ function buildForward(schedules) {
     const list = [];
     for (const s of byUid.values()) {
       if (s.stp === "C") continue; // cancelled that day
-      list.push({ time: s.time, dest: s.dest, stops: s.stops });
+      list.push({ time: s.time, dest: s.dest, stops: s.stops, kind: classify(s) });
     }
     list.sort((a, b) => a.time.localeCompare(b.time));
     days[key] = list;

@@ -15,11 +15,22 @@ export default async (req) => {
   const store = getStore("wye-timetable");
 
   if (req.method === "POST") {
-    const provided = req.headers.get("x-ingest-key") || "";
-    const expected = process.env.INGEST_KEY || "";
-    // constant-timeish check; both must be set
-    if (!expected || provided !== expected)
-      return json({ error: "unauthorised" }, 401);
+    // .trim() guards against a stray trailing space/newline sneaking in when
+    // the key is copy-pasted on a phone — a very common source of "identical
+    // looking but not byte-identical" secrets.
+    const provided = (req.headers.get("x-ingest-key") || "").trim();
+    const expected = (process.env.INGEST_KEY || "").trim();
+
+    if (!expected || provided !== expected) {
+      // Safe diagnostics only: lengths, never the actual values. Enough to
+      // tell "Netlify has no key at all" from "the two keys don't match".
+      return json({
+        error: "unauthorised",
+        expectedSet: !!expected,
+        expectedLen: expected.length,
+        providedLen: provided.length,
+      }, 401);
+    }
 
     let body;
     try { body = JSON.parse(await req.text()); }

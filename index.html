@@ -74,24 +74,20 @@
            padding: 2px 10px; cursor: pointer; font-family: inherit; font-size: 11px; color: #3c423c; }
   .err { color: #a04545; font-size: 12px; margin-top: 8px; }
   /* ═══ PLAN AHEAD ═══ */
-  .planlink {
-    width: 100%; margin: 4px 0 0; text-align: left; cursor: pointer;
-    background: var(--card); border: 1px solid var(--line); border-radius: 8px;
-    padding: 14px 16px; display: flex; align-items: center; gap: 14px;
-    font-family: inherit; color: var(--ink);
+  .plancard {
+    display: flex; align-items: center; gap: 14px; width: 100%; margin-top: 10px;
+    background: var(--panel); border: 0; border-left: 4px solid #FFB400;
+    border-radius: 10px; padding: 15px 18px; cursor: pointer; font-family: inherit;
+    color: #EDEFEC; text-align: left; box-shadow: 0 4px 14px rgba(20,22,26,.18);
   }
-  .planlink:hover { border-color: #9aa39a; }
-  .planlink:focus-visible { outline: 3px solid #F2A900; outline-offset: 2px; }
-  .planlink .pl-title { font-weight: 700; font-size: 15px; display: block; }
-  .planlink .pl-sub { font-size: 12.5px; color: var(--muted); margin-top: 2px; display: block; }
-  .planlink .chev { margin-left: auto; color: #9aa39a; font-size: 20px; }
-  .pl-glyph { width: 34px; height: 34px; flex: none; border-radius: 6px; background: var(--panel);
-              display: grid; place-items: center; }
-  .pl-glyph span { display: block; width: 20px; height: 3px; background: #FFB400; position: relative; }
-  .pl-glyph span::before, .pl-glyph span::after {
-    content: ""; position: absolute; left: 0; height: 3px; background: var(--red); }
-  .pl-glyph span::before { top: -6px; width: 12px; }
-  .pl-glyph span::after { top: 6px; width: 8px; }
+  .plancard:hover { background: #1a1e24; }
+  .plancard:focus-visible { outline: 3px solid #F2A900; outline-offset: 2px; }
+  .plancard .pc-title { font-size: 15px; font-weight: 700; display: block; }
+  .plancard .pc-sub { font-size: 12px; color: #9aa39a; margin-top: 2px; display: block; }
+  .plancard .pc-mini { display: flex; gap: 3px; margin-left: auto; align-items: flex-end; height: 26px; }
+  .plancard .pc-mini i { display: block; width: 4px; background: var(--red);
+                         border-radius: 1px; opacity: .85; }
+  .plancard .pc-chev { color: #FFB400; font-size: 20px; margin-left: 12px; }
 
   .sheet {
     position: fixed; inset: 0; z-index: 50; background: var(--panel); color: #EDEFEC;
@@ -195,19 +191,28 @@
   .tag.past { background: #e3e5e1; color: #8a918a; }
   .rtip .late { color: var(--red); }
 
-  .clist { display: flex; flex-direction: column; gap: 6px; }
-  .citem { display: grid; grid-template-columns: 118px 1fr auto; gap: 12px; align-items: baseline;
-           background: #1c211c; border-radius: 8px; padding: 11px 14px; }
+  .clist { display: flex; flex-direction: column; gap: 7px; }
+  .citem { background: #1c211c; border-radius: 9px; padding: 12px 15px;
+           display: grid; grid-template-columns: 1fr auto; gap: 4px 14px; align-items: start; }
   .citem.workrow { background: #2b1416; }
-  .ctime { font-family: 'IBM Plex Mono', monospace; font-size: 14px; font-weight: 600; color: #EDEFEC; }
-  .ccause { font-size: 13px; color: #a8b0a8; }
-  .cdur { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #FFB400; }
+  .ctime { font-family: 'IBM Plex Mono', monospace; font-size: 14.5px; font-weight: 600;
+           color: #EDEFEC; letter-spacing: .01em; }
+  .cdur { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: #FFB400;
+          justify-self: end; align-self: start; white-space: nowrap; }
+  .ctrains { grid-column: 1 / -1; margin-top: 7px; display: flex; flex-direction: column; gap: 5px; }
+  .ctrain { display: grid; grid-template-columns: 14px 1fr; gap: 9px; align-items: baseline;
+            font-size: 13px; color: #b6beb6; line-height: 1.35; }
+  .ctrain .cdot { color: #6f7a6f; font-size: 11px; line-height: 1.5; }
+  .ctrain b { color: #dfe4df; font-weight: 600; }
+  .ctrain em { font-style: normal; color: #8a918a; font-size: 11.5px; }
+  .cbadge { display: inline-block; font-family: 'IBM Plex Mono', monospace; font-size: 9.5px;
+            letter-spacing: .09em; text-transform: uppercase; padding: 1.5px 5px;
+            border-radius: 3px; background: #2a332a; color: #9fb08f; margin-left: 6px;
+            vertical-align: 1px; }
+  .cbadge.pass { background: #332a2a; color: #c79a9a; }
+  .ccause { font-size: 13px; color: #a8b0a8; grid-column: 1 / -1; margin-top: 5px; }
   .semptyd { background: #1c211c; border-radius: 8px; padding: 16px; font-size: 13.5px;
              color: #a8b0a8; line-height: 1.55; }
-  @media (max-width: 480px) {
-    .citem { grid-template-columns: 104px 1fr; }
-    .cdur { grid-column: 2; }
-  }
 </style>
 </head>
 <body>
@@ -230,17 +235,20 @@
   </div>
   <div id="errBox" class="err mono" hidden></div>
 
+  <button class="plancard" id="openSheet">
+    <span>
+      <span class="pc-title">Plan ahead</span>
+      <span class="pc-sub">Closures for any day, two weeks out</span>
+    </span>
+    <span class="pc-mini" aria-hidden="true">
+      <i style="height:9px"></i><i style="height:16px"></i><i style="height:11px"></i>
+      <i style="height:22px"></i><i style="height:13px"></i><i style="height:18px"></i>
+    </span>
+    <span class="pc-chev">&rsaquo;</span>
+  </button>
+
   <h2>Next closures</h2>
   <div id="closures"><div class="empty">Loading…</div></div>
-
-  <button class="planlink" id="openSheet">
-    <span class="pl-glyph"><span></span></span>
-    <span>
-      <span class="pl-title">Plan ahead</span>
-      <span class="pl-sub">Closure timetable for any day, up to two weeks out</span>
-    </span>
-    <span class="chev">&rsaquo;</span>
-  </button>
 
   <h2>Live trains passing the crossing</h2>
   <div class="board" id="board"><div class="row mono"><span class="sched">Loading…</span></div></div>
@@ -350,12 +358,13 @@ async function fetchCrossingData() {
   ]);
   const map = new Map();
   let scheduled = 0, cancelled = 0; // across all boards, for fail-safe detection
+  const cancelledAt = []; // scheduled "HH:MM" of cancelled services (Wye-relative)
 
   const isCx = s => s.isCancelled || s.etd === "Cancelled" || s.eta === "Cancelled";
 
   for (const s of services(wye)) {
     scheduled++;
-    if (isCx(s)) { cancelled++; continue; }
+    if (isCx(s)) { cancelled++; if (isHHMM(s.std || s.sta)) cancelledAt.push(s.std || s.sta); continue; }
     const { time, live } = bestTime(s.std || s.sta, s.etd || s.eta, now);
     if (!time) continue;
     map.set(key(s), {
@@ -369,7 +378,12 @@ async function fetchCrossingData() {
   const addThrough = (list, offMin) => {
     for (const s of list) {
       scheduled++;
-      if (isCx(s)) { cancelled++; continue; }
+      if (isCx(s)) {
+        cancelled++;
+        const t = parseHHMM(s.std, now);
+        if (t) cancelledAt.push(clock(new Date(t.getTime() + offMin * 6e4)));
+        continue;
+      }
       const k = key(s);
       if (map.has(k)) continue; // Wye board time is more accurate
       const { time, live } = bestTime(s.std, s.etd, now);
@@ -386,7 +400,65 @@ async function fetchCrossingData() {
   addThrough(services(cbw), OFF_CBW);
 
   const list = [...map.values()].sort((a, b) => a.pass - b.pass);
-  return { list, meta: { scheduled, cancelled, running: list.length } };
+  return { list, cancelledAt, meta: { scheduled, cancelled, running: list.length } };
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// COMPLETE LIVE PICTURE
+// Darwin only knows passenger services, so on its own it misses freight and
+// empty-stock movements — the barriers come down and the app would say OPEN.
+// The published timetable knows every movement but not today's delays.
+// So: take the schedule as the base list, overlay Darwin for delays and
+// cancellations, and keep anything Darwin sees that the schedule missed.
+// If there's no usable schedule for today, this returns the Darwin list
+// unchanged — the fix can only ever ADD movements, never remove them.
+// ─────────────────────────────────────────────────────────────────────────────
+const MATCH_WINDOW_MS = 3 * 60 * 1000; // how close a Darwin service must be
+
+function mergeLiveMovements(darwinList, now, cancelledAt) {
+  const todays = publishedFor(new Date(now)); // null if missing/stale
+  if (!todays || !todays.length) return darwinList;
+
+  const cancelledSet = new Set(cancelledAt || []);
+  const used = new Set();
+  const out = [];
+
+  for (const e of todays) {
+    if (cancelledSet.has(e.time)) continue; // Darwin says this one isn't running
+    const schedAt = parseHHMM(e.time, now);
+    if (!schedAt) continue;
+
+    // find the closest unused Darwin service scheduled near this time
+    let bestIdx = -1, bestDiff = Infinity;
+    darwinList.forEach((d, i) => {
+      if (used.has(i)) return;
+      const dSched = parseHHMM(d.sched, now) || d.pass;
+      const diff = Math.abs(dSched - schedAt);
+      if (diff < bestDiff && diff <= MATCH_WINDOW_MS) { bestDiff = diff; bestIdx = i; }
+    });
+
+    if (bestIdx >= 0) {
+      used.add(bestIdx);
+      const d = darwinList[bestIdx];
+      // Darwin wins on timing (it has the delay), schedule wins on identity
+      out.push({ ...d, kind: e.kind || "passenger", tracked: true });
+    } else {
+      // No Darwin match — typically freight or empty stock. Use the planned
+      // time and mark it as untracked so the UI can be honest about it.
+      out.push({
+        pass: schedAt, sched: e.time, live: false, delayed: false,
+        stops: !!e.stops, dest: e.dest || "—", origin: "—",
+        kind: e.kind || "other", tracked: false,
+      });
+    }
+  }
+
+  // Anything Darwin saw that the schedule didn't — keep it rather than lose it
+  darwinList.forEach((d, i) => {
+    if (!used.has(i)) out.push({ ...d, kind: "passenger", tracked: true });
+  });
+
+  return out.sort((a, b) => a.pass - b.pass);
 }
 
 function buildClosures(list) {
@@ -522,7 +594,11 @@ function render() {
   const trainRows = show.map(c => {
     const isNow = c === active;
     const dur = Math.ceil((c.end - c.start) / 6e4); // whole minutes, always round up
-    const tr = c.trains.map(t => (t.stops ? "🚉 " : "→ ") + esc(t.dest) + (t.stops ? "" : " (passing)")).join(" · ");
+    const tr = c.trains.map(t =>
+      t.kind === "freight" ? "🚛 Freight"
+      : t.kind === "ecs" ? "🚃 Empty stock"
+      : (t.stops ? "🚉 " : "→ ") + esc(t.dest) + (t.stops ? "" : " (passing)")
+    ).join(" · ");
     return '<div class="closure' + (isNow ? " now" : "") + '">' +
       '<div><span class="when mono">' + clock(c.start) + "–" + clock(c.end) + "</span>" +
       '<span class="meta">' + (isNow ? "closed now" : "in " + countdown((c.start - now) / 1000)) + " · ~" + dur + " min</span></div>" +
@@ -537,13 +613,22 @@ function render() {
   const future = trains.filter(t => t.pass > new Date(now - 2 * 6e4)).slice(0, 8);
   if (loading) bEl.innerHTML = '<div class="row mono"><span class="sched">Loading…</span></div>';
   else if (!future.length) bEl.innerHTML = '<div class="row mono"><span class="sched">No services in the next two hours.</span></div>';
-  else bEl.innerHTML = future.map(t =>
-    '<div class="row mono"><span class="t">' + clock(t.pass) + "</span>" +
-    '<span class="route">' + esc(t.origin) + " → " + esc(t.dest) +
-    '<span class="note">' + (t.stops ? "calls at Wye" : "passes through") + "</span></span>" +
-    '<span class="stat ' + (t.delayed ? "delayed" : t.live ? "ontime" : "sched") + '">' +
-    (t.delayed ? "Delayed" : t.live ? "On time" : "sched " + esc(t.sched || "")) + "</span></div>"
-  ).join("");
+  else bEl.innerHTML = future.map(t => {
+    const label = t.kind === "freight" ? "freight"
+                : t.kind === "ecs" ? "empty stock"
+                : (t.stops ? "calls at Wye" : "passes through");
+    // Movements Darwin can't see (freight/ECS) have no live status — say so
+    // rather than implying they're confirmed on time.
+    const stat = t.delayed ? '<span class="stat delayed">Delayed</span>'
+      : t.tracked === false ? '<span class="stat sched">timetabled</span>'
+      : t.live ? '<span class="stat ontime">On time</span>'
+      : '<span class="stat sched">sched ' + esc(t.sched || "") + '</span>';
+    const route = t.origin && t.origin !== "—"
+      ? esc(t.origin) + " → " + esc(t.dest) : esc(t.dest);
+    return '<div class="row mono"><span class="t">' + clock(t.pass) + "</span>" +
+      '<span class="route">' + route +
+      '<span class="note">' + label + "</span></span>" + stat + "</div>";
+  }).join("");
 
   document.getElementById("updated").textContent = updatedAt ? clock(updatedAt) : "—";
 }
@@ -552,9 +637,13 @@ async function refresh() {
   // Planned closures load independently so a train-data failure doesn't hide
   // an authoritative works closure (and vice versa).
   plannedClosures = await loadPlannedClosures();
+  // The published timetable is needed by the LIVE view now (for freight and
+  // empty stock), not just Plan ahead. Cheap: cached, refreshed occasionally.
+  await loadPublished();
   try {
     const data = await fetchCrossingData();
-    trains = data.list; meta = data.meta;
+    meta = data.meta;
+    trains = mergeLiveMovements(data.list, new Date(), data.cancelledAt);
     updatedAt = new Date(); lastError = null;
   } catch (e) {
     lastError = (e && e.message) || "Could not reach National Rail data";
@@ -563,9 +652,6 @@ async function refresh() {
 
 document.getElementById("refreshBtn").addEventListener("click", () => { loading = true; render(); refresh(); });
 
-refresh();
-setInterval(refresh, 60 * 1000);
-setInterval(render, 1000);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // PLAN AHEAD
@@ -601,10 +687,20 @@ function durText(ms) {
 // Loaded once per sheet open. If it's missing or stale, the app silently falls
 // back to the learned pattern and flags it (visibly to Benton, quietly to others).
 const PUBLISHED_STALE_HOURS = 36; // older than this ⇒ treat as stale, use fallback
+const PUBLISHED_RELOAD_MS = 30 * 60 * 1000; // re-fetch periodically while open
+let publishedLoadedAt = 0, publishedDayKey = null;
 
 async function loadPublished() {
-  if (publishedLoaded) return;
+  // Reload if never loaded, if it's been a while, or if midnight has passed
+  // (a home-screen app can sit open for days).
+  const todayKey = dayKeyOf(new Date());
+  const fresh = publishedLoaded
+    && (Date.now() - publishedLoadedAt) < PUBLISHED_RELOAD_MS
+    && publishedDayKey === todayKey;
+  if (fresh) return;
   publishedLoaded = true;
+  publishedLoadedAt = Date.now();
+  publishedDayKey = todayKey;
   try {
     const r = await fetch("/api/timetable?t=" + Date.now());
     if (!r.ok) throw new Error("no timetable");
@@ -612,7 +708,7 @@ async function loadPublished() {
     const gen = d.generated ? new Date(d.generated) : null;
     const ageH = gen ? (Date.now() - gen.getTime()) / 3600e3 : Infinity;
     const stale = !gen || ageH > PUBLISHED_STALE_HOURS;
-    publishedCache = d.days || {};   // { "YYYY-MM-DD": [ {time,dest,stops}, ... ] }
+    publishedCache = d.days || {};   // { "YYYY-MM-DD": [ {time,dest,stops,kind}, ... ] }
     publishedMeta = { generated: gen, ageH, stale, ok: !stale && Object.keys(publishedCache).length > 0 };
   } catch {
     publishedCache = {};
@@ -649,6 +745,7 @@ function patternTrains(date, entries, now) {
     const t = new Date(date); t.setHours(h, m, 0, 0);
     return {
       t, delay: 0, dest: e.dest || "—", stops: !!e.stops,
+      kind: e.kind || "passenger",
       state: t.getTime() < now.getTime() ? "past" : "planned",
     };
   });
@@ -872,11 +969,28 @@ function planRenderDay() {
     (works ? '<span><i class="w"></i>road works</span>' : "") +
     (isToday ? '<span><i class="n"></i>now</span>' : "") + '</div>';
 
-  const list = closures.length ? closures.map(c =>
-    '<div class="citem' + (c.works ? " workrow" : "") + '">' +
-    '<div class="ctime">' + clock(c.start) + "–" + clock(c.end) + '</div>' +
-    '<div class="ccause">' + describeWin(c) + '</div>' +
-    '<div class="cdur">' + durText(c.end - c.start) + '</div></div>').join("")
+  const list = closures.length ? closures.map(c => {
+    const head =
+      '<div class="ctime">' + clock(c.start) + "–" + clock(c.end) + '</div>' +
+      '<div class="cdur">' + durText(c.end - c.start) + '</div>';
+    // Works closures have no trains — keep the single-line reason.
+    const body = c.works || !c.trains.length
+      ? '<div class="ccause">' + describeWin(c) + '</div>'
+      : '<div class="ctrains">' + c.trains
+          .slice().sort((a, b) => a.t - b.t)
+          .map(t =>
+            '<div class="ctrain"><span class="cdot">&bull;</span><span>' +
+              '<b>' + (t.kind === "freight" ? "Freight"
+                     : t.kind === "ecs" ? "Empty stock"
+                     : esc(t.dest || "—")) + '</b>' +
+              '<span class="cbadge' + (t.stops ? "" : " pass") + '">' +
+                (t.kind === "freight" || t.kind === "ecs" ? "not in service"
+                 : t.stops ? "calls at Wye" : "passing") + '</span>' +
+              '<br><em>passes ' + clock(t.t) + '</em>' +
+            '</span></div>').join("") +
+        '</div>';
+    return '<div class="citem' + (c.works ? " workrow" : "") + '">' + head + body + '</div>';
+  }).join("")
     : '<div class="semptyd">No closures for this day.</div>';
 
   const conf = source === "published"
@@ -981,6 +1095,13 @@ document.addEventListener("keydown", e => {
   if (planSheet.classList.contains("open")) planClose();
 });
 
+
+// ── startup ──────────────────────────────────────────────────────────────────
+// Placed last so every declaration above (including the published-timetable
+// state used by the live view) is initialised before the first refresh.
+refresh();
+setInterval(refresh, 60 * 1000);
+setInterval(render, 1000);
 </script>
 </body>
 </html>
