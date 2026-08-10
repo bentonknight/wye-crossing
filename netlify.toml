@@ -25,3 +25,8 @@
   from = "/api/timetable"
   to = "/.netlify/functions/timetable"
   status = 200
+
+[[redirects]]
+  from = "/api/live"
+  to = "/.netlify/functions/live"
+  status = 200

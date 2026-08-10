@@ -140,6 +140,41 @@
                          border-radius: 1px; opacity: .85; }
   .plancard .pc-chev { color: #FFB400; font-size: 20px; margin-left: 12px; }
 
+  /* ═══ ADD TO HOME SCREEN ═══ */
+  .a2hs {
+    display: flex; align-items: flex-start; gap: 12px; margin-top: 18px;
+    background: var(--panel); border-radius: 10px; padding: 13px 14px;
+    border-left: 3px solid #FFB400; color: #cfd4cf;
+    opacity: 0; transform: translateY(6px); transition: opacity .3s ease, transform .3s ease;
+  }
+  .a2hs.show { opacity: 1; transform: translateY(0); }
+  .a2hs .a2-ico {
+    width: 30px; height: 30px; flex: none; border-radius: 7px; background: #1c211c;
+    display: grid; place-items: center; font-size: 15px; color: #FFB400;
+  }
+  .a2hs .a2-body { flex: 1; min-width: 0; }
+  .a2hs .a2-t { font-size: 13.5px; font-weight: 700; color: #EDEFEC; margin: 0 0 3px; }
+  .a2hs .a2-s { font-size: 12px; color: #9aa39a; line-height: 1.5; margin: 0; }
+  .a2hs .a2-s kbd {
+    font-family: inherit; font-style: normal; background: #262c26; color: #dfe4df;
+    padding: 1px 6px; border-radius: 4px; font-size: 11.5px; white-space: nowrap;
+  }
+  .a2hs .a2-install {
+    margin-top: 8px; background: #FFB400; color: #14161A; border: 0; border-radius: 7px;
+    padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
+    font-family: inherit;
+  }
+  .a2hs .a2-close {
+    flex: none; background: none; border: 0; color: #6f7a6f; font-size: 18px;
+    line-height: 1; cursor: pointer; padding: 2px 4px; margin: -2px -2px 0 0;
+  }
+  .a2hs .a2-close:hover { color: #9aa39a; }
+
+  .version {
+    text-align: center; font-size: 10px; color: #b9beb9; opacity: .65;
+    margin: 20px 0 6px; letter-spacing: .04em; user-select: text;
+  }
+
   .sheet {
     position: fixed; inset: 0; z-index: 50; background: var(--panel); color: #EDEFEC;
     overflow-y: auto; transform: translateY(100%); visibility: hidden;
@@ -305,13 +340,16 @@
   <div class="board" id="board"><div class="row mono"><span class="sched">Loading…</span></div></div>
 
   <footer>
-    <p>Live data: National Rail Darwin via the Huxley2 community proxy.
-    Barrier status is <strong>estimated</strong> from train movements — there is no public
-    gate sensor. Pass times for non-stopping services are approximated from Ashford and
-    Canterbury West departures. Always obey the lights and barriers at the crossing.</p>
+    <p>Live data: National Rail Darwin. Barrier status is <strong>estimated</strong> from
+    train movements — there is no public gate sensor. Pass times for non-stopping services
+    are approximated from Ashford and Canterbury West departures. Always obey the lights
+    and barriers at the crossing.</p>
     <p class="mono">Updated <span id="updated">—</span> · refreshes every 60s
       <button id="refreshBtn">Refresh now</button></p>
   </footer>
+
+  <div id="a2hsSlot"></div>
+  <p class="version mono" id="versionTag"></p>
 </div>
 
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
@@ -330,13 +368,16 @@
 </div>
 
 <script>
+// ── VERSION ──────────────────────────────────────────────────────────────────
+// Bump this on every deploy. Shown in small print at the foot of the page —
+// handy for confirming a deploy actually landed, or checking which build a
+// tester is running. Nothing reads this except the line at the bottom.
+const APP_VERSION = "v7 · 9 Aug 2026";
+
 // ── config ───────────────────────────────────────────────────────────────────
-const PROXIES = [
-  "https://national-rail-api.davwheat.dev",
-  "https://huxley2.azurewebsites.net",
-];
-const OFF_AFK = 7;   // mins: Ashford dep → passes Wye
-const OFF_CBW = 13;  // mins: Canterbury West dep → passes Wye
+// Darwin is polled server-side (netlify/functions/poll.mjs) — the browser only
+// ever talks to our own cached endpoints. The Ashford/Canterbury offsets live
+// in the poller now; keep the two in step if you change them.
 const DOWN_BEFORE = 180, UP_AFTER_PASS = 45, UP_AFTER_STOP = 95; // seconds
 // A stopping train from Ashford that is short enough to sit clear of the road
 // releases the barriers on arrival rather than on departure. Confirmed at Wye:
@@ -391,90 +432,40 @@ const esc = s => String(s ?? "").replace(/[&<>"']/g, c =>
   ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
 
 // ── data ─────────────────────────────────────────────────────────────────────
-async function fetchBoard(path) {
-  let lastErr;
-  for (const base of PROXIES) {
-    try {
-      const r = await fetch(base + path);
-      if (!r.ok) throw new Error("HTTP " + r.status);
-      return await r.json();
-    } catch (e) { lastErr = e; }
-  }
-  throw lastErr || new Error("All data sources failed");
-}
-const key = s => s.serviceIdGuid || s.serviceID || s.serviceId || (s.std + s.sta);
-const services = b => (b && b.trainServices) || [];
-
-// Darwin's ServiceItem carries train length in coaches. Southeastern publishes
-// formation data, but it's operator-supplied so treat it as optional.
-function coachCount(s) {
-  const n = Number(s && s.length);
-  return Number.isFinite(n) && n > 0 && n < 40 ? n : null;
-}
-// Calling points only appear on "with details" responses — use them if present.
-function callingPoints(s) {
-  const cp = s && s.subsequentCallingPoints && s.subsequentCallingPoints[0];
-  const list = cp && (cp.callingPoint || cp);
-  if (!Array.isArray(list)) return "";
-  return list.map(c => c && c.locationName).filter(Boolean).join(", ");
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// LIVE DATA — now read from our own cached endpoint, not Darwin directly.
+// One server-side poll serves everybody, so load is flat regardless of how many
+// people are watching. Times arrive as "HH:MM" strings (see poll.mjs) and are
+// turned into Dates here, in the user's own timezone, which avoids any BST
+// confusion on the UTC server.
+// ─────────────────────────────────────────────────────────────────────────────
+let liveAgeSec = null, liveStale = false;
 
 async function fetchCrossingData() {
   const now = new Date();
-  const [wye, afk, cbw] = await Promise.all([
-    fetchBoard("/all/WYE/10?timeWindow=120"),
-    fetchBoard("/departures/AFK/to/CBW/10?timeWindow=120"),
-    fetchBoard("/departures/CBW/to/AFK/10?timeWindow=120"),
-  ]);
-  const map = new Map();
-  let scheduled = 0, cancelled = 0; // across all boards, for fail-safe detection
-  const cancelledAt = []; // scheduled "HH:MM" of cancelled services (Wye-relative)
+  const r = await fetch("/api/live?t=" + Math.floor(Date.now() / 15000)); // 15s cache buster
+  if (!r.ok) throw new Error("HTTP " + r.status);
+  const snap = await r.json();
 
-  const isCx = s => s.isCancelled || s.etd === "Cancelled" || s.eta === "Cancelled";
+  liveAgeSec = snap.ageSec ?? null;
+  liveStale = !!snap.stale;
 
-  for (const s of services(wye)) {
-    scheduled++;
-    if (isCx(s)) { cancelled++; if (isHHMM(s.std || s.sta)) cancelledAt.push(s.std || s.sta); continue; }
-    const { time, live } = bestTime(s.std || s.sta, s.etd || s.eta, now);
-    if (!time) continue;
-    map.set(key(s), {
-      pass: time, live, stops: true,
-      dest: s.destination?.[0]?.locationName || "—",
-      origin: s.origin?.[0]?.locationName || "—",
-      sched: s.std || s.sta,
-      delayed: s.etd === "Delayed" || s.eta === "Delayed",
-      cars: coachCount(s), operator: s.operator || "", platform: s.platform || "",
-      calling: callingPoints(s),
-    });
-  }
-  const addThrough = (list, offMin) => {
-    for (const s of list) {
-      scheduled++;
-      if (isCx(s)) {
-        cancelled++;
-        const t = parseHHMM(s.std, now);
-        if (t) cancelledAt.push(clock(new Date(t.getTime() + offMin * 6e4)));
-        continue;
-      }
-      const k = key(s);
-      if (map.has(k)) continue; // Wye board time is more accurate
-      const { time, live } = bestTime(s.std, s.etd, now);
-      if (!time) continue;
-      map.set(k, {
-        pass: new Date(time.getTime() + offMin * 6e4), live, stops: false,
-        dest: s.destination?.[0]?.locationName || "—",
-        origin: s.origin?.[0]?.locationName || "—",
-        sched: s.std, delayed: s.etd === "Delayed",
-        cars: coachCount(s), operator: s.operator || "", platform: "",
-        calling: callingPoints(s),
-      });
-    }
+  const list = (snap.trains || []).map(t => {
+    const pass = parseHHMM(t.t, now);
+    if (!pass) return null;
+    return {
+      pass, sched: t.sched || t.t, live: !!t.live, delayed: !!t.delayed,
+      stops: !!t.stops, dest: t.dest || "—", origin: t.origin || "—",
+      cars: t.cars ?? null, operator: t.operator || "",
+      platform: t.platform || "", calling: t.calling || "",
+    };
+  }).filter(Boolean).sort((a, b) => a.pass - b.pass);
+
+  return {
+    list,
+    cancelledAt: snap.cancelledAt || [],
+    meta: snap.meta || { scheduled: 0, cancelled: 0, running: list.length },
   };
-  addThrough(services(afk), OFF_AFK);
-  addThrough(services(cbw), OFF_CBW);
-
-  const list = [...map.values()].sort((a, b) => a.pass - b.pass);
-  return { list, cancelledAt, meta: { scheduled, cancelled, running: list.length } };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -582,7 +573,33 @@ function barrierNote(t) {
          "stopped, so barriers stay down until it departs." };
 }
 
+// Occasionally the same physical train appears twice in the data — a known
+// quirk of how joined/associated services are represented, where one record
+// shows it calling at Wye and another (for the associated portion) shows it
+// passing through at the same time. Collapse these before building windows.
+// Same destination within 2 minutes = treated as one movement; the richer
+// record wins (live-tracked > stops known > coach length known), and if
+// either version says it calls at Wye that's kept — a real platform stop is
+// real regardless of which portion's record shows it.
+const DUPLICATE_WINDOW_MS = 2 * 60 * 1000;
+function dedupeMovements(list, timeField) {
+  timeField = timeField || "pass";
+  const at = x => x[timeField];
+  const sorted = [...list].sort((a, b) => at(a) - at(b));
+  const out = [];
+  for (const t of sorted) {
+    const i = out.findIndex(o =>
+      o.dest === t.dest && o.kind === t.kind &&
+      Math.abs(at(o) - at(t)) <= DUPLICATE_WINDOW_MS);
+    if (i === -1) { out.push(t); continue; }
+    const score = x => (x.tracked ? 2 : 0) + (x.stops ? 1 : 0) + (x.cars != null ? 1 : 0);
+    if (score(t) > score(out[i])) out[i] = t;
+  }
+  return out;
+}
+
 function buildClosures(list) {
+  list = dedupeMovements(list);
   const ws = list.map(t => ({
     start: new Date(t.pass.getTime() - DOWN_BEFORE * 1000),
     end: new Date(t.pass.getTime() + upAfterFor(t) * 1000),
@@ -696,8 +713,15 @@ function render() {
   document.getElementById("lamps").classList.toggle("on", lampsOn);
 
   const errBox = document.getElementById("errBox");
-  errBox.hidden = !(lastError && trains.length);
-  if (!errBox.hidden) errBox.textContent = "Data source unreachable — showing last good data from " + clock(updatedAt);
+  const stalled = !loading && !lastError && liveStale && trains.length;
+  errBox.hidden = !((lastError && trains.length) || stalled);
+  if (!errBox.hidden) {
+    errBox.textContent = lastError
+      ? "Data source unreachable — showing last good data from " + clock(updatedAt)
+      : "Live data hasn't refreshed for " +
+        (liveAgeSec != null ? Math.round(liveAgeSec / 60) + " min" : "a while") +
+        " — times may be out of date.";
+  }
 
   // closures — planned (works) closures shown first, then train-driven windows
   const cEl = document.getElementById("closures");
@@ -960,6 +984,7 @@ function todayTrains(entries, now) {
 
 // ── barrier model (identical to the live view) ───────────────────────────────
 function windowsFrom(list) {
+  list = dedupeMovements(list, "t");
   const wins = list.map(tr => ({
     start: new Date(tr.t.getTime() - DOWN_BEFORE * 1000),
     end: new Date(tr.t.getTime() + upAfterFor({ stops: tr.stops, dest: tr.dest, cars: tr.cars }) * 1000),
@@ -1287,12 +1312,156 @@ document.addEventListener("keydown", e => {
 });
 
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ADD TO HOME SCREEN
+// Shown once, to people who haven't installed the app, then never again.
+// Android gets a real one-tap install via Chrome's native prompt; iOS Safari
+// gets short instructions, since Apple has no equivalent API. Anyone else
+// (desktop, other browsers) sees nothing rather than risk wrong instructions.
+// ═══════════════════════════════════════════════════════════════════════════
+
+// Chrome only fires this once, early, and only if we're listening before it
+// fires — so this listener is attached unconditionally at the top level,
+// not inside any function that runs later.
+let deferredInstallPrompt = null;
+window.addEventListener("beforeinstallprompt", (e) => {
+  e.preventDefault();
+  deferredInstallPrompt = e;
+});
+
+// Pure functions (UA string in, verdict out) so they're testable without a
+// real browser — see the accompanying test harness.
+function a2hsIsIOS(ua, maxTouchPoints) {
+  // iPadOS 13+ reports as "Macintosh" in the UA but is still a touchscreen.
+  if (/iPad|iPhone|iPod/.test(ua)) return true;
+  if (/Macintosh/.test(ua) && (maxTouchPoints || 0) > 1) return true;
+  return false;
+}
+function a2hsIsIOSSafari(ua, maxTouchPoints) {
+  if (!a2hsIsIOS(ua, maxTouchPoints)) return false;
+  // Chrome/Firefox/Edge on iOS all use Safari's engine but present their own
+  // share sheets — the "tap Share, then Add to Home Screen" instructions
+  // only match actual Safari, so exclude the others explicitly.
+  return !/CriOS|FxiOS|EdgiOS|OPiOS|Brave/.test(ua);
+}
+function a2hsIsAndroidChromium(ua) {
+  if (!/Android/.test(ua)) return false;
+  return /Chrome|Chromium|CrMo|SamsungBrowser/.test(ua) && !/Firefox|FxiOS/.test(ua);
+}
+
+function a2hsStandalone() {
+  if (navigator.standalone === true) return true; // iOS
+  try {
+    if (window.matchMedia && window.matchMedia("(display-mode: standalone)").matches) return true;
+  } catch { /* ignore */ }
+  return false;
+}
+
+const A2HS_KEY = "wyeA2hsDismissed";
+function a2hsDismissed() {
+  try { return localStorage.getItem(A2HS_KEY) === "1"; } catch { return false; }
+}
+function a2hsDismiss() {
+  try { localStorage.setItem(A2HS_KEY, "1"); } catch { /* private browsing etc — fine to skip */ }
+  const el = document.getElementById("a2hsSlot");
+  if (el) el.innerHTML = "";
+}
+
+function a2hsRender() {
+  if (a2hsStandalone() || a2hsDismissed()) return;
+  const slot = document.getElementById("a2hsSlot");
+  if (!slot) return;
+
+  const ua = navigator.userAgent || "";
+  const touch = navigator.maxTouchPoints || 0;
+
+  let html = null;
+
+  if (deferredInstallPrompt && a2hsIsAndroidChromium(ua)) {
+    html =
+      '<div class="a2hs" id="a2hsCard"><span class="a2-ico">+</span>' +
+      '<div class="a2-body"><p class="a2-t">Add Wye Crossing to your home screen</p>' +
+      '<p class="a2-s">One tap — opens like an app, no browser bar.</p>' +
+      '<button class="a2-install" id="a2hsInstall">Install</button></div>' +
+      '<button class="a2-close" id="a2hsClose" aria-label="Dismiss">&times;</button></div>';
+  } else if (a2hsIsAndroidChromium(ua)) {
+    // beforeinstallprompt hasn't fired (or this Chrome build doesn't support
+    // it) — fall back to the manual route via Chrome's own menu.
+    html =
+      '<div class="a2hs" id="a2hsCard"><span class="a2-ico">+</span>' +
+      '<div class="a2-body"><p class="a2-t">Add Wye Crossing to your home screen</p>' +
+      '<p class="a2-s">Tap <kbd>&#8942;</kbd> in Chrome, then <kbd>Add to Home screen</kbd>.</p>' +
+      '</div><button class="a2-close" id="a2hsClose" aria-label="Dismiss">&times;</button></div>';
+  } else if (a2hsIsIOSSafari(ua, touch)) {
+    html =
+      '<div class="a2hs" id="a2hsCard"><span class="a2-ico">&#8593;</span>' +
+      '<div class="a2-body"><p class="a2-t">Add Wye Crossing to your home screen</p>' +
+      '<p class="a2-s">Tap <kbd>Share</kbd> below, then <kbd>Add to Home Screen</kbd>.</p>' +
+      '</div><button class="a2-close" id="a2hsClose" aria-label="Dismiss">&times;</button></div>';
+  }
+
+  if (!html) return; // unrecognised platform — say nothing rather than guess
+  slot.innerHTML = html;
+
+  document.getElementById("a2hsClose")?.addEventListener("click", a2hsDismiss);
+  document.getElementById("a2hsInstall")?.addEventListener("click", async () => {
+    if (!deferredInstallPrompt) return;
+    deferredInstallPrompt.prompt();
+    try { await deferredInstallPrompt.userChoice; } catch { /* ignore */ }
+    deferredInstallPrompt = null;
+    a2hsDismiss(); // shown or declined, either way don't ask again
+  });
+
+  requestAnimationFrame(() => document.getElementById("a2hsCard")?.classList.add("show"));
+}
+
+// Shown only after the app has something real on screen, and only once —
+// never competing with the live status the person actually opened this for.
+let a2hsShown = false;
+function a2hsMaybeShowAfterData() {
+  if (a2hsShown || loading) return;
+  a2hsShown = true;
+  setTimeout(a2hsRender, 3000);
+}
+
+// A minimal service worker registration. Chrome's install prompt won't fire
+// reliably without one — this doesn't add offline support (yet), it just
+// satisfies that requirement. Checking the object itself (not just `in`)
+// because some restricted browser contexts expose the property name without
+// a usable value — this must never be able to throw and break startup.
+try {
+  if (navigator.serviceWorker && navigator.serviceWorker.register) {
+    navigator.serviceWorker.register("/sw.js").catch(() => { /* non-fatal */ });
+  }
+} catch { /* non-fatal */ }
+
 // ── startup ──────────────────────────────────────────────────────────────────
 // Placed last so every declaration above (including the published-timetable
 // state used by the live view) is initialised before the first refresh.
-refresh();
-setInterval(refresh, 60 * 1000);
+const versionEl = document.getElementById("versionTag");
+if (versionEl) versionEl.textContent = APP_VERSION;
+
+refresh().then(a2hsMaybeShowAfterData);
 setInterval(render, 1000);
+
+// Poll only while the app is actually on screen. A phone sitting on a home
+// screen overnight shouldn't be asking for data 1,400 times — this is a big
+// part of what keeps the shared hosting comfortable at village scale.
+let pollTimer = null;
+function startPolling() {
+  if (pollTimer) return;
+  pollTimer = setInterval(refresh, 60 * 1000);
+}
+function stopPolling() {
+  if (!pollTimer) return;
+  clearInterval(pollTimer);
+  pollTimer = null;
+}
+document.addEventListener("visibilitychange", () => {
+  if (document.hidden) stopPolling();
+  else { refresh(); startPolling(); }   // catch up immediately on return
+});
+if (!document.hidden) startPolling();
 </script>
 </body>
 </html>
