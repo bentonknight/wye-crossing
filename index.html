@@ -19,6 +19,11 @@
     --card: #FDFDFB; --line: #d7dad6; --muted: #5d645d;
   }
   * { box-sizing: border-box; }
+  /* Browsers give <button> a small default margin/appearance that a <div>
+     doesn't have — left unreset, button-based cards (like Plan ahead) sit a
+     few px off from div-based ones (like the status panel) above them. */
+  button { margin: 0; padding: 0; appearance: none; -webkit-appearance: none;
+           font-family: inherit; }
   body {
     margin: 0; min-height: 100vh; background: var(--bg); color: var(--ink);
     font-family: 'Archivo', system-ui, sans-serif; padding-bottom: 48px;
@@ -121,8 +126,6 @@
 
   footer { margin-top: 26px; font-size: 12px; color: #6a716a; line-height: 1.6; }
   footer .mono { font-size: 11px; }
-  button { margin-left: 8px; background: none; border: 1px solid #9aa39a; border-radius: 4px;
-           padding: 2px 10px; cursor: pointer; font-family: inherit; font-size: 11px; color: #3c423c; }
   .err { color: #a04545; font-size: 12px; margin-top: 8px; }
   /* ═══ PLAN AHEAD ═══ */
   .plancard {
@@ -141,34 +144,66 @@
   .plancard .pc-chev { color: #FFB400; font-size: 20px; margin-left: 12px; }
 
   /* ═══ ADD TO HOME SCREEN ═══ */
-  .a2hs {
-    display: flex; align-items: flex-start; gap: 12px; margin-top: 18px;
-    background: var(--panel); border-radius: 10px; padding: 13px 14px;
-    border-left: 3px solid #FFB400; color: #cfd4cf;
+  /* Slim teaser: icon, one line, an Add button that opens the full sheet
+     below — never crams instructions into the teaser itself. */
+  .a2t {
+    display: flex; align-items: center; gap: 12px; margin-top: 10px;
+    background: var(--panel); border-radius: 10px; padding: 11px 13px;
     opacity: 0; transform: translateY(6px); transition: opacity .3s ease, transform .3s ease;
   }
-  .a2hs.show { opacity: 1; transform: translateY(0); }
-  .a2hs .a2-ico {
-    width: 30px; height: 30px; flex: none; border-radius: 7px; background: #1c211c;
-    display: grid; place-items: center; font-size: 15px; color: #FFB400;
+  .a2t.show { opacity: 1; transform: translateY(0); }
+  .a2t img { width: 36px; height: 36px; border-radius: 9px; flex: none;
+             box-shadow: 0 0 0 1px #2c333c; }
+  .a2t .a2t-txt { flex: 1; min-width: 0; font-size: 13px; color: #dfe4df; line-height: 1.35; }
+  .a2t .a2t-add {
+    flex: none; background: #FFB400; color: #14161A; border: 0; border-radius: 999px;
+    padding: 8px 18px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit;
   }
-  .a2hs .a2-body { flex: 1; min-width: 0; }
-  .a2hs .a2-t { font-size: 13.5px; font-weight: 700; color: #EDEFEC; margin: 0 0 3px; }
-  .a2hs .a2-s { font-size: 12px; color: #9aa39a; line-height: 1.5; margin: 0; }
-  .a2hs .a2-s kbd {
-    font-family: inherit; font-style: normal; background: #262c26; color: #dfe4df;
-    padding: 1px 6px; border-radius: 4px; font-size: 11.5px; white-space: nowrap;
+  .a2t .a2t-x {
+    flex: none; background: none; border: 0; color: #6f7a6f; font-size: 17px;
+    cursor: pointer; padding: 4px 6px;
   }
-  .a2hs .a2-install {
-    margin-top: 8px; background: #FFB400; color: #14161A; border: 0; border-radius: 7px;
-    padding: 7px 14px; font-size: 12.5px; font-weight: 700; cursor: pointer;
-    font-family: inherit;
+
+  /* Full instruction sheet — reuses the exact sliding mechanism Plan Ahead
+     already uses, so it's visually consistent rather than a new pattern. */
+  .a2sheet {
+    position: fixed; inset: 0; z-index: 60; background: var(--panel); color: #EDEFEC;
+    overflow-y: auto; transform: translateY(100%); visibility: hidden;
+    transition: transform .28s cubic-bezier(.3,.7,.2,1);
   }
-  .a2hs .a2-close {
-    flex: none; background: none; border: 0; color: #6f7a6f; font-size: 18px;
-    line-height: 1; cursor: pointer; padding: 2px 4px; margin: -2px -2px 0 0;
+  .a2sheet.open { transform: translateY(0); visibility: visible; }
+  @media (prefers-reduced-motion: reduce) { .a2sheet { transition: none; } }
+  .a2s-top {
+    position: sticky; top: 0; background: rgba(20,22,26,.97); backdrop-filter: blur(6px);
+    padding: 22px 22px 8px; border-bottom: 1px solid #2c352c;
   }
-  .a2hs .a2-close:hover { color: #9aa39a; }
+  .a2s-top h2 { margin: 0 34px 0 0; font-size: 23px; font-weight: 800; font-stretch: 85%;
+                line-height: 1.2; text-transform: none; letter-spacing: 0; color: #EDEFEC; }
+  .a2s-close {
+    position: absolute; top: 18px; right: 18px; background: none; border: 1px solid #454d45;
+    color: #cfd4cf; border-radius: 999px; width: 32px; height: 32px; font-size: 16px; cursor: pointer;
+  }
+  .a2s-sub { font-size: 13px; color: #9aa39a; margin: 8px 0 16px; }
+  .a2s-body { padding: 18px 20px 60px; max-width: 520px; margin: 0 auto; }
+  .a2step {
+    display: flex; align-items: center; gap: 14px; background: #1c211c; border-radius: 12px;
+    padding: 14px 16px; margin-bottom: 10px;
+  }
+  .a2step .a2-num {
+    flex: none; width: 30px; height: 30px; border-radius: 50%; background: #FFB400;
+    color: #14161A; font-weight: 800; font-size: 14px; display: grid; place-items: center;
+  }
+  .a2step .a2-txt { flex: 1; font-size: 14.5px; line-height: 1.4; color: #EDEFEC; }
+  .a2step .a2-ic {
+    flex: none; width: 36px; height: 36px; border-radius: 9px; background: #262c26;
+    display: grid; place-items: center; color: #dfe4df;
+  }
+
+  #refreshBtn {
+    margin-left: 8px; background: none; border: 1px solid #9aa39a; border-radius: 4px;
+    padding: 2px 10px; cursor: pointer; font-family: inherit; font-size: 11px;
+    color: #3c423c;
+  }
 
   .version {
     text-align: center; font-size: 10px; color: #b9beb9; opacity: .65;
@@ -333,6 +368,8 @@
     <span class="pc-chev">&rsaquo;</span>
   </button>
 
+  <div id="a2hsSlot"></div>
+
   <h2>Next closures</h2>
   <div id="closures"><div class="empty">Loading…</div></div>
 
@@ -348,8 +385,16 @@
       <button id="refreshBtn">Refresh now</button></p>
   </footer>
 
-  <div id="a2hsSlot"></div>
   <p class="version mono" id="versionTag"></p>
+</div>
+
+<div class="a2sheet" id="a2sheet" role="dialog" aria-modal="true" aria-labelledby="a2sheetTitle">
+  <div class="a2s-top">
+    <h2 id="a2sheetTitle">Add to your Home Screen</h2>
+    <button class="a2s-close" id="a2sheetClose" aria-label="Close">&#10005;</button>
+    <p class="a2s-sub" id="a2sheetSub">Follow these steps to install the app.</p>
+  </div>
+  <div class="a2s-body" id="a2sheetSteps"></div>
 </div>
 
 <div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
@@ -372,7 +417,7 @@
 // Bump this on every deploy. Shown in small print at the foot of the page —
 // handy for confirming a deploy actually landed, or checking which build a
 // tester is running. Nothing reads this except the line at the bottom.
-const APP_VERSION = "v7 · 9 Aug 2026";
+const APP_VERSION = "v8 · 9 Aug 2026";
 
 // ── config ───────────────────────────────────────────────────────────────────
 // Darwin is polled server-side (netlify/functions/poll.mjs) — the browser only
@@ -1308,7 +1353,9 @@ document.addEventListener("keydown", e => {
   if (e.key !== "Escape") return;
   const tip = document.getElementById("rtip");
   if (tip && tip.classList.contains("show")) { planClearSel(); return; }
-  if (planSheet.classList.contains("open")) planClose();
+  if (planSheet.classList.contains("open")) { planClose(); return; }
+  const a2s = document.getElementById("a2sheet");
+  if (a2s && a2s.classList.contains("open")) a2s.classList.remove("open");
 });
 
 
@@ -1367,6 +1414,55 @@ function a2hsDismiss() {
   if (el) el.innerHTML = "";
 }
 
+// Small inline icons for the instruction sheet — no icon font dependency.
+const A2HS_ICONS = {
+  dots: "&#8942;",
+  share: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6"/></svg>',
+  plus: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  check: '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>',
+};
+
+// The two manual flows. (Android-native skips this sheet entirely — tapping
+// Add goes straight to Chrome's own install dialog, which is the OS's UI,
+// not ours, so there's nothing to author here for that case.)
+const A2HS_FLOWS = {
+  ios: {
+    title: "Add Wye Crossing to your Home Screen",
+    sub: "Follow these 4 quick steps to install the app.",
+    steps: [
+      ["Tap &bull;&bull;&bull; in the Safari toolbar.", "dots"],
+      ["Tap the Share button.", "share"],
+      ["Scroll and choose &ldquo;Add to Home Screen&rdquo;.", "plus"],
+      ["Tap &ldquo;Add&rdquo; in the top-right to finish.", "check"],
+    ],
+  },
+  androidFallback: {
+    title: "Add Wye Crossing to your Home Screen",
+    sub: "Follow these 3 quick steps to install the app.",
+    steps: [
+      ["Tap &#8942; in the top-right of Chrome.", "dots"],
+      ["Tap &ldquo;Add to Home screen&rdquo;.", "plus"],
+      ["Tap &ldquo;Add&rdquo; to confirm.", "check"],
+    ],
+  },
+};
+
+function a2hsOpenSheet(flowKey) {
+  const f = A2HS_FLOWS[flowKey];
+  if (!f) return;
+  document.getElementById("a2sheetTitle").textContent = f.title;
+  document.getElementById("a2sheetSub").textContent = f.sub;
+  document.getElementById("a2sheetSteps").innerHTML = f.steps.map(([txt, icon], i) =>
+    '<div class="a2step"><span class="a2-num">' + (i + 1) + '</span>' +
+    '<span class="a2-txt">' + txt + '</span>' +
+    '<span class="a2-ic">' + A2HS_ICONS[icon] + '</span></div>'
+  ).join("");
+  document.getElementById("a2sheet").classList.add("open");
+  a2hsDismiss(); // they've engaged with it either way — don't ask again
+}
+document.getElementById("a2sheetClose")?.addEventListener("click", () =>
+  document.getElementById("a2sheet").classList.remove("open"));
+
 function a2hsRender() {
   if (a2hsStandalone() || a2hsDismissed()) return;
   const slot = document.getElementById("a2hsSlot");
@@ -1374,45 +1470,34 @@ function a2hsRender() {
 
   const ua = navigator.userAgent || "";
   const touch = navigator.maxTouchPoints || 0;
+  const androidNative = deferredInstallPrompt && a2hsIsAndroidChromium(ua);
+  const androidFallback = !androidNative && a2hsIsAndroidChromium(ua);
+  const ios = a2hsIsIOSSafari(ua, touch);
 
-  let html = null;
+  if (!androidNative && !androidFallback && !ios) return; // unrecognised — say nothing
 
-  if (deferredInstallPrompt && a2hsIsAndroidChromium(ua)) {
-    html =
-      '<div class="a2hs" id="a2hsCard"><span class="a2-ico">+</span>' +
-      '<div class="a2-body"><p class="a2-t">Add Wye Crossing to your home screen</p>' +
-      '<p class="a2-s">One tap — opens like an app, no browser bar.</p>' +
-      '<button class="a2-install" id="a2hsInstall">Install</button></div>' +
-      '<button class="a2-close" id="a2hsClose" aria-label="Dismiss">&times;</button></div>';
-  } else if (a2hsIsAndroidChromium(ua)) {
-    // beforeinstallprompt hasn't fired (or this Chrome build doesn't support
-    // it) — fall back to the manual route via Chrome's own menu.
-    html =
-      '<div class="a2hs" id="a2hsCard"><span class="a2-ico">+</span>' +
-      '<div class="a2-body"><p class="a2-t">Add Wye Crossing to your home screen</p>' +
-      '<p class="a2-s">Tap <kbd>&#8942;</kbd> in Chrome, then <kbd>Add to Home screen</kbd>.</p>' +
-      '</div><button class="a2-close" id="a2hsClose" aria-label="Dismiss">&times;</button></div>';
-  } else if (a2hsIsIOSSafari(ua, touch)) {
-    html =
-      '<div class="a2hs" id="a2hsCard"><span class="a2-ico">&#8593;</span>' +
-      '<div class="a2-body"><p class="a2-t">Add Wye Crossing to your home screen</p>' +
-      '<p class="a2-s">Tap <kbd>Share</kbd> below, then <kbd>Add to Home Screen</kbd>.</p>' +
-      '</div><button class="a2-close" id="a2hsClose" aria-label="Dismiss">&times;</button></div>';
-  }
+  const iconSrc = "apple-touch-icon.png";
+  slot.innerHTML =
+    '<div class="a2t" id="a2tCard">' +
+      '<img src="' + iconSrc + '" alt="" />' +
+      '<span class="a2t-txt">Add Wye Crossing to your Home Screen for one-tap access.</span>' +
+      '<button class="a2t-add" id="a2tAdd">Add</button>' +
+      '<button class="a2t-x" id="a2tClose" aria-label="Dismiss">&times;</button>' +
+    '</div>';
 
-  if (!html) return; // unrecognised platform — say nothing rather than guess
-  slot.innerHTML = html;
-
-  document.getElementById("a2hsClose")?.addEventListener("click", a2hsDismiss);
-  document.getElementById("a2hsInstall")?.addEventListener("click", async () => {
-    if (!deferredInstallPrompt) return;
-    deferredInstallPrompt.prompt();
-    try { await deferredInstallPrompt.userChoice; } catch { /* ignore */ }
-    deferredInstallPrompt = null;
-    a2hsDismiss(); // shown or declined, either way don't ask again
+  document.getElementById("a2tClose")?.addEventListener("click", a2hsDismiss);
+  document.getElementById("a2tAdd")?.addEventListener("click", async () => {
+    if (androidNative) {
+      deferredInstallPrompt.prompt();
+      try { await deferredInstallPrompt.userChoice; } catch { /* ignore */ }
+      deferredInstallPrompt = null;
+      a2hsDismiss();
+    } else {
+      a2hsOpenSheet(ios ? "ios" : "androidFallback");
+    }
   });
 
-  requestAnimationFrame(() => document.getElementById("a2hsCard")?.classList.add("show"));
+  requestAnimationFrame(() => document.getElementById("a2tCard")?.classList.add("show"));
 }
 
 // Shown only after the app has something real on screen, and only once —
