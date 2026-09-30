@@ -417,7 +417,7 @@
 // Bump this on every deploy. Shown in small print at the foot of the page —
 // handy for confirming a deploy actually landed, or checking which build a
 // tester is running. Nothing reads this except the line at the bottom.
-const APP_VERSION = "v8 · 9 Aug 2026";
+const APP_VERSION = "v9 · 9 Aug 2026";
 
 // ── config ───────────────────────────────────────────────────────────────────
 // Darwin is polled server-side (netlify/functions/poll.mjs) — the browser only
@@ -498,8 +498,21 @@ async function fetchCrossingData() {
   const list = (snap.trains || []).map(t => {
     const pass = parseHHMM(t.t, now);
     if (!pass) return null;
+    // Darwin flags a train as the literal string "Delayed" only when it can't
+    // estimate by how much. Far more often it just gives a revised time — so
+    // work the delay out by comparing that against the scheduled time, or a
+    // late-running service gets labelled "On time" while showing its late time.
+    const schedStr = t.sched || t.t;
+    const schedD = parseHHMM(schedStr, now);
+    let delayMin = 0;
+    if (schedD) {
+      const diff = Math.round((pass - schedD) / 60000);
+      // Ignore negatives (early running) and implausibly large gaps, which
+      // are almost always a midnight-wrap artefact rather than a real delay.
+      if (diff > 0 && diff < 180) delayMin = diff;
+    }
     return {
-      pass, sched: t.sched || t.t, live: !!t.live, delayed: !!t.delayed,
+      pass, sched: schedStr, live: !!t.live, delayed: !!t.delayed, delayMin,
       stops: !!t.stops, dest: t.dest || "—", origin: t.origin || "—",
       cars: t.cars ?? null, operator: t.operator || "",
       platform: t.platform || "", calling: t.calling || "",
@@ -559,7 +572,7 @@ function mergeLiveMovements(darwinList, now, cancelledAt) {
         pass: schedAt, sched: e.time, live: false, delayed: false,
         stops: !!e.stops, dest: e.dest || "—", origin: "—",
         kind: e.kind || "other", tracked: false,
-        cars: null, operator: "", platform: "", calling: "",
+        cars: null, operator: "", platform: "", calling: "", delayMin: 0,
       });
     }
   }
@@ -813,7 +826,7 @@ function renderBoard(future) {
   const bEl = document.getElementById("board");
   const sig = loading ? "loading"
     : future.map(t => trainKey(t) + (t.delayed ? "D" : "") + (t.live ? "L" : "") +
-                      (t.cars || "")).join(",");
+                      (t.delayMin || 0) + (t.cars || "")).join(",");
   if (sig === boardSig) return;                 // nothing changed
   if (openTrainKey && bEl.querySelector(".trow.open")) return; // don't yank an open row
   boardSig = sig;
@@ -836,6 +849,7 @@ function renderBoard(future) {
     // rather than implying they're confirmed on time.
     const stat = t.delayed ? '<span class="tstat delayed">Delayed</span>'
       : t.tracked === false ? '<span class="tstat sched">timetabled</span>'
+      : t.delayMin >= 1 ? '<span class="tstat delayed">' + t.delayMin + ' min late</span>'
       : t.live ? '<span class="tstat ontime">On time</span>'
       : '<span class="tstat sched">sched ' + esc(t.sched || "") + '</span>';
     const route = t.origin && t.origin !== "—"
@@ -848,6 +862,10 @@ function renderBoard(future) {
       (t.calling ? "<i>calling at</i> " + esc(t.calling) + " &nbsp;·&nbsp; " : "") +
       (t.operator ? "<i>operator</i> " + esc(t.operator) : "<i>not a passenger service</i>") +
       (t.platform ? " &nbsp;·&nbsp; <i>platform</i> " + esc(t.platform) : "") +
+      (t.delayMin >= 1
+        ? " &nbsp;·&nbsp; <i>scheduled</i> " + esc(t.sched || "") +
+          ", <i>running</i> " + t.delayMin + " min late"
+        : "") +
       " &nbsp;·&nbsp; <i>passes Wye</i> " + clock(t.pass);
 
     return '<div class="trow' + (k === openTrainKey ? " open" : "") + '" data-k="' + esc(k) + '">' +
@@ -1016,9 +1034,9 @@ function todayTrains(entries, now) {
   const live = (trains || [])
     .filter(t => t.pass.getTime() >= now.getTime() && t.pass.getTime() <= liveEnd)
     .map(t => {
-      const schedD = parseHHMM(t.sched, now);
-      const delay = schedD ? Math.max(0, Math.round((t.pass - schedD) / 60000)) : 0;
-      return { t: t.pass, delay, dest: t.dest, stops: t.stops,
+      // delayMin is worked out once in fetchCrossingData — reuse it rather
+      // than recomputing, so the two views can never disagree.
+      return { t: t.pass, delay: t.delayMin || 0, dest: t.dest, stops: t.stops,
                kind: t.kind || "passenger", cars: t.cars ?? null, state: "live" };
     });
   const midnight = new Date(now); midnight.setHours(0, 0, 0, 0);
